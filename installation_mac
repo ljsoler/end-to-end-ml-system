@@ -1,0 +1,83 @@
+1️⃣ Install Required Tools
+
+brew install k3d kubectl helm natscli minio
+brew install argocd
+brew install jq
+
+Install Docker Desktop
+
+2️⃣ Create cluster
+
+k3d cluster create vision-cluster \
+  --servers 1 \
+  --agents 2 \
+  --servers-memory 4g \
+  --agents-memory 4g
+
+Check:
+
+kubectl get nodes
+
+PHASE 3 — Install Core Namespaces
+  kubectl create namespace serving
+  kubectl create namespace data
+  kubectl create namespace observability
+  kubectl create namespace training
+  kubectl create namespace gitops
+
+
+🚀 PHASE 4 — Install ArgoCD (GitOps)
+  kubectl apply -n gitops -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+Expose ArgoCD UI:
+
+kubectl port-forward svc/argocd-server -n gitops 8081:443
+
+Access:
+
+https://localhost:8081
+
+Get password:
+
+user: admin
+kubectl -n gitops get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+
+🚀 PHASE 5 — Install Data Layer
+3️⃣ Install MinIO
+helm repo add minio https://charts.min.io/
+
+helm install minio minio/minio -n data \
+  --set mode=standalone \
+  --set rootUser=minio \
+  --set rootPassword=minio123456
+
+4️⃣ Install PostgreSQL
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install postgres bitnami/postgresql -n data
+
+
+5️⃣ Install NATS JetStream
+helm repo add nats https://nats-io.github.io/k8s/helm/charts/
+helm install nats nats/nats -n data --set jetstream.enabled=true
+
+🚀 PHASE 8 — Observability (LGTM on Mac)
+
+Install Grafana stack via Helm:
+
+helm repo add grafana https://grafana.github.io/helm-charts
+
+Install:
+
+Loki
+
+Tempo
+
+Mimir
+
+Grafana
+
+(Or install full LGTM bundle.)
+
+Then instrument FastAPI with OpenTelemetry:
+
+pip install opentelemetry-sdk opentelemetry-instrumentation-fastapi

@@ -1,0 +1,30 @@
+name: "identity_onnx"
+platform: "onnxruntime_onnx"
+max_batch_size: 8
+
+version_policy: {
+  latest {
+    num_versions: 2
+  }
+}
+
+dynamic_batching {
+  preferred_batch_size: [2, 4, 8]
+  max_queue_delay_microseconds: 2000
+}
+
+input [
+  {
+    name: "INPUT__0"
+    data_type: TYPE_FP32
+    dims: [ 3, 224, 224 ]
+  }
+]
+
+output [
+  {
+    name: "OUTPUT__0"
+    data_type: TYPE_FP32
+    dims: [ 3, 224, 224 ]
+  }
+]
