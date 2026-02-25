@@ -61,6 +61,8 @@ kind: Service
 metadata:
   name: triton
   namespace: serving
+  labels:
+    app: triton    # 🔥 THIS IS THE FIX
 spec:
   selector:
     app: triton

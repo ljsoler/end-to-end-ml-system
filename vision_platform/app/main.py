@@ -20,13 +20,13 @@ app = FastAPI(title="Vision Gateway (Task-Agnostic)")
 REQUEST_COUNT = Counter(
     "gateway_requests_total",
     "Total inference requests",
-    ["model_name", "task_type", "status"]
+    ["model_name", "task_type", "machine_id", "camera_id", "status"]
 )
 
 INFERENCE_LATENCY = Histogram(
     "gateway_inference_latency_ms",
     "Inference latency in milliseconds",
-    ["model_name", "task_type"],
+    ["model_name", "task_type", "machine_id", "camera_id"],
     buckets=(1, 5, 10, 20, 50, 100, 200, 500, 1000)
 )
 
@@ -68,6 +68,8 @@ def metrics():
 async def infer_endpoint(request: Request, req: InferenceRequest):
 
     trace_id = uuid.uuid4().hex
+    machine_id = req.metadata.get("machine_id", "unknown")
+    camera_id = req.metadata.get("camera_id", "unknown")
 
     try:
         entry = await get_model_entry(
@@ -79,6 +81,8 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
             REQUEST_COUNT.labels(
                 model_name=req.model_name,
                 task_type="unknown",
+                machine_id=machine_id,
+                camera_id=camera_id,
                 status="error"
             ).inc()
             raise HTTPException(status_code=404, detail="Model not active")
@@ -114,12 +118,16 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
         REQUEST_COUNT.labels(
             model_name=req.model_name,
             task_type=task_type,
+            machine_id=machine_id,
+            camera_id=camera_id,
             status="success"
         ).inc()
 
         INFERENCE_LATENCY.labels(
             model_name=req.model_name,
-            task_type=task_type
+            task_type=task_type,
+            machine_id=machine_id,
+            camera_id=camera_id
         ).observe(latency_ms)
 
         return InferenceResponse(
@@ -134,6 +142,8 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
         REQUEST_COUNT.labels(
             model_name=req.model_name,
             task_type="unknown",
+            machine_id=machine_id,
+            camera_id=camera_id,
             status="error"
         ).inc()
         raise

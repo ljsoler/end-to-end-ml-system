@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gateway-alerts
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: gateway.rules
+      rules:
+        - alert: HighMachineErrorRate
+          expr: |
+            (
+              sum by (machine_id) (
+                rate(gateway_requests_total{status="error"}[5m])
+              )
+              /
+              sum by (machine_id) (
+                rate(gateway_requests_total[5m])
+              )
+            ) > 0.03
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High error rate on machine {{ $labels.machine_id }}"
+            description: "Error rate exceeded 3% over last 5 minutes."
