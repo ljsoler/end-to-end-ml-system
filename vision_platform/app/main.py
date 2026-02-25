@@ -1,5 +1,6 @@
 import os
 import uuid
+import random
 from fastapi import FastAPI, HTTPException, UploadFile, Request
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
@@ -9,10 +10,13 @@ from .router import resolve_route
 from .storage import decode_b64_image, s3_client, make_object_key
 from .db import init_db, insert_result
 from .triton_infer import infer as triton_infer
-from .inference import infer as canary_infer
-from .preprocessing import preprocess
 from app.tasks.registry import TASK_REGISTRY
 from .model_registry import get_model_entry
+from enum import Enum
+
+class ModelVersion(str, Enum):
+    stable = "stable"
+    canary = "canary"
 
 app = FastAPI(title="Vision Gateway (Task-Agnostic)")
 
@@ -20,7 +24,8 @@ app = FastAPI(title="Vision Gateway (Task-Agnostic)")
 REQUEST_COUNT = Counter(
     "gateway_requests_total",
     "Total inference requests",
-    ["model_name", "task_type", "machine_id", "camera_id", "status"]
+    ["model_name", "model_version", "version_type",
+     "task_type", "machine_id", "camera_id", "status"]
 )
 
 INFERENCE_LATENCY = Histogram(
@@ -46,16 +51,6 @@ async def startup():
     print("DB POOL:", pool)
     app.state.db_pool = pool
 
-@app.post("/predict")
-async def predict(file: UploadFile):
-    tensor = preprocess(file)
-    result, version = canary_infer(tensor)
-
-    return {
-        "model_version": version
-        # "prediction": result
-    }
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -70,8 +65,10 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
     trace_id = uuid.uuid4().hex
     machine_id = req.metadata.get("machine_id", "unknown")
     camera_id = req.metadata.get("camera_id", "unknown")
-
     try:
+        selected_version = None
+        version_label = None
+
         entry = await get_model_entry(
             request.app.state.db_pool,
             req.model_name
@@ -83,20 +80,39 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
                 task_type="unknown",
                 machine_id=machine_id,
                 camera_id=camera_id,
+                version_type="unknown",
+                model_version="unknown",
                 status="error"
             ).inc()
             raise HTTPException(status_code=404, detail="Model not active")
+        
+        stable_version = entry["stable_version"] 
+        canary_version = entry["canary_version"]
+        canary_percent = entry["canary_percent"] or 0
+
+        if canary_version and random.random() < (canary_percent / 100.0):
+            selected_version = canary_version
+            version_label = ModelVersion.canary.value
+        else:
+            selected_version = stable_version
+            version_label = ModelVersion.stable.value
 
         task_type = entry["task_type"]
 
         task = TASK_REGISTRY.get(task_type)
+        if not task:
+            raise HTTPException(
+                status_code=500,
+                detail=f"No Task registered for task_type '{task_type}'"
+            )
 
         inputs_np = task.encode_inputs(req.payload, entry["preprocess_config"])
 
         outputs_np, latency_ms = triton_infer(
             TRITON_URL,
             req.model_name,
-            inputs_np
+            inputs_np,
+            model_version=selected_version
         )
 
         predictions = task.decode_outputs(
@@ -117,6 +133,8 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
 
         REQUEST_COUNT.labels(
             model_name=req.model_name,
+            model_version=selected_version,
+            version_type=version_label,
             task_type=task_type,
             machine_id=machine_id,
             camera_id=camera_id,
@@ -132,7 +150,7 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
 
         return InferenceResponse(
             model_name=req.model_name,
-            model_version=None,
+            model_version=selected_version,
             latency_ms=latency_ms,
             predictions=predictions,
             trace_id=trace_id,
@@ -141,6 +159,8 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
     except Exception:
         REQUEST_COUNT.labels(
             model_name=req.model_name,
+            model_version="unknown",
+            version_type="unknown",
             task_type="unknown",
             machine_id=machine_id,
             camera_id=camera_id,

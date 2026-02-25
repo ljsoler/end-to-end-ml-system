@@ -126,3 +126,7 @@ ON CONFLICT (model_name) DO UPDATE SET
   Grafana: http://localhost:3000
   user: admin
   password: CXAiuLBgnred3NbCBoBfAXenxFFVQbu6URQaO7iv
+
+
+  #Check if Triton service is up and running:
+  kubectl get svc -n serving triton -o yaml
