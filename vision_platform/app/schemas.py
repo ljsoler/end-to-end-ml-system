@@ -1,17 +1,17 @@
-from pydantic import BaseModel, Field
-from typing import Any, Dict, Literal, Optional
+from __future__ import annotations
+from typing import Any, Dict, Optional
+from pydantic import BaseModel
 
-TaskType = Literal["identity_test", "detection", "segmentation", "classification", "anomaly"]
 
 class InferenceRequest(BaseModel):
-    task_type: TaskType
-    image_b64: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    model_name: str
+    payload: Dict[str, Any]
+    metadata: Optional[Dict[str, Any]] = {}
+
 
 class InferenceResponse(BaseModel):
-    task_type: TaskType
+    trace_id: str
     model_name: str
     model_version: Optional[str] = None
     latency_ms: float
-    predictions: Any
-    trace_id: str
+    predictions: Dict[str, Any]

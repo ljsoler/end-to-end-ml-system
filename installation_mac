@@ -81,3 +81,48 @@ Grafana
 Then instrument FastAPI with OpenTelemetry:
 
 pip install opentelemetry-sdk opentelemetry-instrumentation-fastapi
+
+
+#reboot gateway
+docker build -t vision-gateway:dev ./vision_platform
+k3d image import vision-gateway:dev -c vision
+kubectl -n serving rollout restart deploy/gateway
+
+kubectl -n serving describe pod triton-xxxxx
+kubectl -n serving logs deploy/triton
+kubectl -n serving logs deploy/gateway
+
+kubectl -n serving logs triton-xxxxx
+
+#Some goes wrong? Check logs:
+kubectl logs -n serving -l app=gateway
+
+
+#Create database table:
+  kubectl -n data port-forward svc/postgres-postgresql 5432:5432
+
+  psql "postgresql://postgres:postgres@localhost:5432/visiondb" -f vision_platform/sql/002_model_registry.sql
+
+
+  #insert dummy model record for testing:
+
+  INSERT INTO model_registry (model_name, task_type, preprocess_config, postprocess_config, description)
+VALUES (
+  'identity_onnx',
+  'identity', 
+  '{"input_encoding":"base64_image","resize":[224,224]}'::jsonb,
+  '{}'::jsonb,
+  'Dummy identity model for plumbing tests'
+)
+ON CONFLICT (model_name) DO UPDATE SET
+  task_type = EXCLUDED.task_type,
+  preprocess_config = EXCLUDED.preprocess_config,
+  postprocess_config = EXCLUDED.postprocess_config,
+  updated_at = now();
+
+
+  \d inference_results
+
+  Grafana: http://localhost:3000
+  user: admin
+  password: CXAiuLBgnred3NbCBoBfAXenxFFVQbu6URQaO7iv

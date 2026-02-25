@@ -14,3 +14,4 @@ requests
 pillow
 numpy
 python-multipart
+prometheus-client
