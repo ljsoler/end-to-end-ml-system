@@ -68,6 +68,7 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
     try:
         selected_version = None
         version_label = None
+        task_type = None
 
         entry = await get_model_entry(
             request.app.state.db_pool,
@@ -77,11 +78,11 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
         if not entry or not entry["active"]:
             REQUEST_COUNT.labels(
                 model_name=req.model_name,
-                task_type="unknown",
+                model_version=selected_version or "unknown",
+                version_type=version_label or "unknown",
+                task_type=task_type or "unknown",
                 machine_id=machine_id,
                 camera_id=camera_id,
-                version_type="unknown",
-                model_version="unknown",
                 status="error"
             ).inc()
             raise HTTPException(status_code=404, detail="Model not active")
@@ -159,9 +160,9 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
     except Exception:
         REQUEST_COUNT.labels(
             model_name=req.model_name,
-            model_version="unknown",
-            version_type="unknown",
-            task_type="unknown",
+            model_version=selected_version or "unknown",
+            version_type=version_label or "unknown",
+            task_type=task_type or "unknown",
             machine_id=machine_id,
             camera_id=camera_id,
             status="error"

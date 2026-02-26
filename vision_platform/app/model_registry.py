@@ -1,7 +1,5 @@
 import json
 
-import json
-
 async def get_model_entry(pool, model_name: str):
 
     query = """

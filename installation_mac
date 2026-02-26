@@ -94,8 +94,12 @@ kubectl -n serving logs deploy/gateway
 
 kubectl -n serving logs triton-xxxxx
 
+kubectl logs -n serving -l app=triton --previous
+
 #Some goes wrong? Check logs:
 kubectl logs -n serving -l app=gateway
+
+kubectl get pods -n serving
 
 
 #Create database table:
@@ -106,16 +110,30 @@ kubectl logs -n serving -l app=gateway
 
   #insert dummy model record for testing:
 
-  INSERT INTO model_registry (model_name, task_type, preprocess_config, postprocess_config, description)
+  INSERT INTO model_registry (
+  model_name,
+  task_type,
+  stable_version,
+  canary_version,
+  canary_percent,
+  preprocess_config,
+  postprocess_config,
+  description
+)
 VALUES (
   'identity_onnx',
-  'identity', 
-  '{"input_encoding":"base64_image","resize":[224,224]}'::jsonb,
+  'identity',
+  '1',
+  '2',
+  10,
+  '{"resize":[224,224]}'::jsonb,
   '{}'::jsonb,
-  'Dummy identity model for plumbing tests'
+  'Identity model with canary enabled'
 )
 ON CONFLICT (model_name) DO UPDATE SET
-  task_type = EXCLUDED.task_type,
+  stable_version = EXCLUDED.stable_version,
+  canary_version = EXCLUDED.canary_version,
+  canary_percent = EXCLUDED.canary_percent,
   preprocess_config = EXCLUDED.preprocess_config,
   postprocess_config = EXCLUDED.postprocess_config,
   updated_at = now();

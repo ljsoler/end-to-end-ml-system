@@ -1,18 +1,40 @@
 CREATE TABLE IF NOT EXISTS model_registry (
   id BIGSERIAL PRIMARY KEY,
-  model_name TEXT NOT NULL UNIQUE,          -- e.g., "identity_onnx" o "ensemble_detection_v3"
-  task_type TEXT NOT NULL,                  -- e.g., "classification", "detection", "segmentation"
+
+  -- Logical model identifier used by Gateway
+  model_name TEXT NOT NULL UNIQUE,  
+
+  -- Task abstraction (identity, detection, segmentation, ensemble, etc.)
+  task_type TEXT NOT NULL,
+
+  -- Whether model is routable
   active BOOLEAN NOT NULL DEFAULT TRUE,
 
-  -- runtime config para la task (resize, mean/std, thresholds, etc.)
+  -- 🔵 Version control
+  stable_version TEXT NOT NULL DEFAULT '1',
+  canary_version TEXT NULL,
+  canary_percent INTEGER NOT NULL DEFAULT 0 CHECK (canary_percent >= 0 AND canary_percent <= 100),
+
+  -- Optional: future ramp strategy (manual, auto, shadow, etc.)
+  rollout_strategy TEXT NOT NULL DEFAULT 'manual',
+
+  -- Runtime configs
   preprocess_config JSONB NOT NULL DEFAULT '{}'::jsonb,
   postprocess_config JSONB NOT NULL DEFAULT '{}'::jsonb,
 
-  -- opcional: etiquetas útiles
+  -- Metadata
   description TEXT NULL,
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_model_registry_active ON model_registry(active);
-CREATE INDEX IF NOT EXISTS idx_model_registry_task ON model_registry(task_type);
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_model_registry_active 
+  ON model_registry(active);
+
+CREATE INDEX IF NOT EXISTS idx_model_registry_task 
+  ON model_registry(task_type);
+
+CREATE INDEX IF NOT EXISTS idx_model_registry_rollout 
+  ON model_registry(rollout_strategy);

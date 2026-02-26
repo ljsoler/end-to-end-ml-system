@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canary-controller
+  namespace: serving
+  labels:
+    app: canary-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: canary-controller
+  template:
+    metadata:
+      labels:
+        app: canary-controller
+    spec:
+      containers:
+        - name: controller
+          image: vision-canary-controller:dev
+          env:
+            - name: PG_DSN
+              value: "postgresql://postgres:postgres@postgres-postgresql.data.svc.cluster.local:5432/visiondb"
+            - name: PROM_URL
+              value: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
+            - name: MODEL_NAME
+              value: "identity_onnx"

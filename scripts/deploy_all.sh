@@ -50,7 +50,13 @@ helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
 
 kubectl apply -f k8s/monitoring/gateway-servicemonitor.yaml
 
-echo "[8] Deploy Triton + Gateway (YAML manifests)"
+echo "[8] Build Canary Controller Image"
+docker build -f vision_platform/Dockerfile.controller -t vision-canary-controller:dev vision_platform
+k3d image import vision-canary-controller:dev -c vision
+
+kubectl apply -f k8s/serving/canary-controller.yaml
+
+echo "[9] Deploy Triton + Gateway (YAML manifests)"
 kubectl apply -f "${ROOT_DIR}/k8s/serving/triton.yaml"
 kubectl apply -f "${ROOT_DIR}/k8s/serving/gateway.yaml"
 
