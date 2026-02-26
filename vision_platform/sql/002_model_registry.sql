@@ -2,9 +2,9 @@ CREATE TABLE IF NOT EXISTS model_registry (
   id BIGSERIAL PRIMARY KEY,
 
   -- Logical model identifier used by Gateway
-  model_name TEXT NOT NULL UNIQUE,  
+  model_name TEXT NOT NULL UNIQUE,
 
-  -- Task abstraction (identity, detection, segmentation, ensemble, etc.)
+  -- Task abstraction
   task_type TEXT NOT NULL,
 
   -- Whether model is routable
@@ -13,10 +13,22 @@ CREATE TABLE IF NOT EXISTS model_registry (
   -- 🔵 Version control
   stable_version TEXT NOT NULL DEFAULT '1',
   canary_version TEXT NULL,
-  canary_percent INTEGER NOT NULL DEFAULT 0 CHECK (canary_percent >= 0 AND canary_percent <= 100),
+  canary_percent INTEGER NOT NULL DEFAULT 0
+      CHECK (canary_percent >= 0 AND canary_percent <= 100),
 
-  -- Optional: future ramp strategy (manual, auto, shadow, etc.)
-  rollout_strategy TEXT NOT NULL DEFAULT 'manual',
+  -- 🔵 Rollout control
+  rollout_strategy TEXT NOT NULL DEFAULT 'manual', -- manual | progressive | shadow
+
+  ramp_step INTEGER NOT NULL DEFAULT 10, -- % increment per promotion
+  ramp_interval_seconds INTEGER NOT NULL DEFAULT 120, -- wait time between ramps
+
+  last_ramp_at TIMESTAMPTZ NULL, -- last time traffic was increased
+
+  -- 🔵 Promotion thresholds
+  error_threshold DOUBLE PRECISION NOT NULL DEFAULT 0.03,
+  ratio_threshold DOUBLE PRECISION NOT NULL DEFAULT 2.0,
+
+  min_requests INTEGER NOT NULL DEFAULT 50, -- minimum traffic before evaluation
 
   -- Runtime configs
   preprocess_config JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -29,12 +41,3 @@ CREATE TABLE IF NOT EXISTS model_registry (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Indexes
-CREATE INDEX IF NOT EXISTS idx_model_registry_active 
-  ON model_registry(active);
-
-CREATE INDEX IF NOT EXISTS idx_model_registry_task 
-  ON model_registry(task_type);
-
-CREATE INDEX IF NOT EXISTS idx_model_registry_rollout 
-  ON model_registry(rollout_strategy);

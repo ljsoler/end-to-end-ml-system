@@ -113,9 +113,16 @@ kubectl get pods -n serving
   INSERT INTO model_registry (
   model_name,
   task_type,
+  active,
   stable_version,
   canary_version,
   canary_percent,
+  rollout_strategy,
+  ramp_step,
+  ramp_interval_seconds,
+  error_threshold,
+  ratio_threshold,
+  min_requests,
   preprocess_config,
   postprocess_config,
   description
@@ -123,19 +130,33 @@ kubectl get pods -n serving
 VALUES (
   'identity_onnx',
   'identity',
+  TRUE,
   '1',
   '2',
   10,
+  'progressive',
+  10,
+  120,
+  0.03,
+  2.0,
+  50,
   '{"resize":[224,224]}'::jsonb,
   '{}'::jsonb,
-  'Identity model with canary enabled'
+  'Identity model with progressive canary rollout enabled'
 )
 ON CONFLICT (model_name) DO UPDATE SET
   stable_version = EXCLUDED.stable_version,
   canary_version = EXCLUDED.canary_version,
   canary_percent = EXCLUDED.canary_percent,
+  rollout_strategy = EXCLUDED.rollout_strategy,
+  ramp_step = EXCLUDED.ramp_step,
+  ramp_interval_seconds = EXCLUDED.ramp_interval_seconds,
+  error_threshold = EXCLUDED.error_threshold,
+  ratio_threshold = EXCLUDED.ratio_threshold,
+  min_requests = EXCLUDED.min_requests,
   preprocess_config = EXCLUDED.preprocess_config,
   postprocess_config = EXCLUDED.postprocess_config,
+  description = EXCLUDED.description,
   updated_at = now();
 
 
