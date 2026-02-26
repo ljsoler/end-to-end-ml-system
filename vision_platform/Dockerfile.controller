@@ -1,0 +1,9 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir asyncpg requests
+
+COPY app/canary_controller.py /app/
+
+CMD ["python", "canary_controller.py"]

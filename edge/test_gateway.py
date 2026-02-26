@@ -1,6 +1,6 @@
 import requests
 
-url = "http://localhost:8082/predict"
+url = "http://localhost:8084/predict"
 
 with open("./edge/sample_images/test.jpg", "rb") as f:
     files = {"file": f}

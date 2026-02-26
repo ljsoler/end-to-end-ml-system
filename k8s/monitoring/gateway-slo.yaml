@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gateway-slo
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: gateway.slo
+      rules:
+
+        - record: gateway:error_rate_5m
+          expr: |
+            sum(rate(gateway_requests_total{status="error"}[5m]))
+            /
+            sum(rate(gateway_requests_total[5m]))
+
+        - record: gateway:error_rate_30m
+          expr: |
+            sum(rate(gateway_requests_total{status="error"}[30m]))
+            /
+            sum(rate(gateway_requests_total[30m]))

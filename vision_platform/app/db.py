@@ -1,4 +1,5 @@
 import asyncpg
+import json
 
 CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inference_results (
@@ -15,14 +16,21 @@ CREATE TABLE IF NOT EXISTS inference_results (
 """
 
 async def init_db(dsn: str):
-    conn = await asyncpg.connect(dsn)
-    try:
+    pool = await asyncpg.create_pool(
+        dsn,
+        min_size=1,
+        max_size=10
+    )
+
+    # ensure table exists once at startup
+    async with pool.acquire() as conn:
         await conn.execute(CREATE_SQL)
-    finally:
-        await conn.close()
+
+    return pool
+
 
 async def insert_result(
-    dsn: str,
+    pool,
     *,
     trace_id: str,
     task_type: str,
@@ -32,14 +40,18 @@ async def insert_result(
     prediction: dict,
     raw_image_key: str | None,
 ):
-    conn = await asyncpg.connect(dsn)
-    try:
+    async with pool.acquire() as conn:
         await conn.execute(
-            """
-            INSERT INTO inference_results(trace_id, task_type, model_name, latency_ms, metadata, prediction, raw_image_key)
-            VALUES($1, $2, $3, $4, $5, $6, $7)
-            """,
-            trace_id, task_type, model_name, latency_ms, metadata, prediction, raw_image_key
-        )
-    finally:
-        await conn.close()
+        """
+        INSERT INTO inference_results
+        (trace_id, task_type, model_name, latency_ms, metadata, prediction, raw_image_key)
+        VALUES($1, $2, $3, $4, $5, $6, $7)
+        """,
+        trace_id,
+        task_type,
+        model_name,
+        latency_ms,
+        json.dumps(metadata),
+        json.dumps(prediction),
+        raw_image_key
+    )

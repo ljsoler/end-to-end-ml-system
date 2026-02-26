@@ -41,7 +41,22 @@ k3d image import vision-gateway:dev -c vision
 echo "[6] Apply Gateway Secret"
 kubectl apply -f "${ROOT_DIR}/k8s/serving/gateway-secret.yaml"
 
-echo "[7] Deploy Triton + Gateway (YAML manifests)"
+echo "[7] Build Monitoring Stack (Prometheus + Grafana)"
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  -n monitoring --create-namespace
+
+kubectl apply -f k8s/monitoring/gateway-servicemonitor.yaml
+
+echo "[8] Build Canary Controller Image"
+docker build -f vision_platform/Dockerfile.controller -t vision-canary-controller:dev vision_platform
+k3d image import vision-canary-controller:dev -c vision
+
+kubectl apply -f k8s/serving/canary-controller.yaml
+
+echo "[9] Deploy Triton + Gateway (YAML manifests)"
 kubectl apply -f "${ROOT_DIR}/k8s/serving/triton.yaml"
 kubectl apply -f "${ROOT_DIR}/k8s/serving/gateway.yaml"
 

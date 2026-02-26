@@ -1,0 +1,41 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gateway-burnrate
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: gateway.burnrate
+      rules:
+
+        # 1️⃣ Burn rate calculation
+        - record: gateway:burnrate_5m
+          expr: |
+            (
+              sum(rate(gateway_requests_total{status="error"}[5m]))
+              /
+              sum(rate(gateway_requests_total[5m]))
+            ) / 0.01
+
+        - record: gateway:burnrate_30m
+          expr: |
+            (
+              sum(rate(gateway_requests_total{status="error"}[30m]))
+              /
+              sum(rate(gateway_requests_total[30m]))
+            ) / 0.01
+
+        # 2️⃣ Alert condition
+        - alert: GatewayHighErrorBudgetBurn
+          expr: |
+            gateway:burnrate_5m > 2
+            and
+            gateway:burnrate_30m > 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Gateway error budget burn too high"
+            description: "System is consuming error budget too fast."

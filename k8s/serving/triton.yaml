@@ -5,6 +5,8 @@ metadata:
   namespace: serving
 spec:
   replicas: 1
+  progressDeadlineSeconds: 900   # 30 minutes
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: triton
@@ -61,6 +63,8 @@ kind: Service
 metadata:
   name: triton
   namespace: serving
+  labels:
+    app: triton    # 🔥 THIS IS THE FIX
 spec:
   selector:
     app: triton

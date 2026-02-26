@@ -25,7 +25,7 @@ spec:
               cpu: "500m"
           env:
             - name: TRITON_URL
-              value: "http://triton.serving.svc.cluster.local:8000"
+              value: "triton.serving.svc.cluster.local:8000"
             - name: CANARY_PERCENT
               value: "10"
             - name: MINIO_ENDPOINT
@@ -55,9 +55,12 @@ kind: Service
 metadata:
   name: gateway
   namespace: serving
+  labels:
+    app: gateway
 spec:
   selector:
     app: gateway
   ports:
-    - port: 8000
+    - name: http      # 🔥 REQUIRED
+      port: 8000
       targetPort: 8000
