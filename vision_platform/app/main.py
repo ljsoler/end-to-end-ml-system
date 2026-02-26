@@ -1,9 +1,9 @@
 import os
 import uuid
 import random
-from fastapi import FastAPI, HTTPException, UploadFile, Request
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from fastapi.responses import Response
+from fastapi import FastAPI, HTTPException, Request # type: ignore
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST # type: ignore
+from fastapi.responses import Response # type: ignore
 
 from .schemas import InferenceRequest, InferenceResponse
 from .router import resolve_route
@@ -63,8 +63,8 @@ def metrics():
 async def infer_endpoint(request: Request, req: InferenceRequest):
 
     trace_id = uuid.uuid4().hex
-    machine_id = req.metadata.get("machine_id", "unknown")
-    camera_id = req.metadata.get("camera_id", "unknown")
+    machine_id = req.metadata.get("machine_id", "unknown") # type: ignore
+    camera_id = req.metadata.get("camera_id", "unknown") # type: ignore
     try:
         selected_version = None
         version_label = None
@@ -127,7 +127,7 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
             task_type=task_type,
             model_name=req.model_name,
             latency_ms=latency_ms,
-            metadata=req.metadata,
+            metadata=req.metadata, # type: ignore
             prediction=predictions,
             raw_image_key=None,
         )
@@ -160,9 +160,9 @@ async def infer_endpoint(request: Request, req: InferenceRequest):
     except Exception:
         REQUEST_COUNT.labels(
             model_name=req.model_name,
-            model_version=selected_version or "unknown",
-            version_type=version_label or "unknown",
-            task_type=task_type or "unknown",
+            model_version=selected_version or "unknown", # type: ignore
+            version_type=version_label or "unknown", # type: ignore
+            task_type=task_type or "unknown", # type: ignore
             machine_id=machine_id,
             camera_id=camera_id,
             status="error"
