@@ -1,6 +1,6 @@
 import os
 import asyncio
-import asyncpg
+import asyncpg # type: ignore
 import requests
 
 PROM_URL = os.getenv(
