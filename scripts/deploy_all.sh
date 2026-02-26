@@ -50,6 +50,13 @@ helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
 
 kubectl apply -f k8s/monitoring/gateway-servicemonitor.yaml
 
+echo "[7.1] Deploy Prometheus Pushgateway"
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+helm repo update >/dev/null
+
+helm upgrade --install pushgateway prometheus-community/prometheus-pushgateway \
+  -n monitoring --create-namespace --wait
+
 echo "[8] Build Canary Controller Image"
 docker build -f vision_platform/Dockerfile.controller -t vision-canary-controller:dev vision_platform
 k3d image import vision-canary-controller:dev -c vision

@@ -41,3 +41,26 @@ CREATE TABLE IF NOT EXISTS model_registry (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE model_drift_metrics (
+  id BIGSERIAL PRIMARY KEY,
+
+  model_name TEXT NOT NULL,
+  task_type TEXT NOT NULL,
+  camera_id TEXT NOT NULL,
+
+  window_start TIMESTAMPTZ NOT NULL,
+  window_end TIMESTAMPTZ NOT NULL,
+  reference_start TIMESTAMPTZ NOT NULL,
+  reference_end TIMESTAMPTZ NOT NULL,
+
+  drift_score DOUBLE PRECISION NOT NULL,
+  share_drifted_features DOUBLE PRECISION NOT NULL,
+  n_ref INTEGER NOT NULL,
+  n_cur INTEGER NOT NULL,
+
+  report_key TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_drift_model_camera_time
+  ON model_drift_metrics(model_name, camera_id, created_at);
