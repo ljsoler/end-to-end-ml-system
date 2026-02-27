@@ -196,7 +196,7 @@ ON CONFLICT (model_name) DO UPDATE SET
 
   Grafana: http://localhost:3000
   user: admin
-  password: CXAiuLBgnred3NbCBoBfAXenxFFVQbu6URQaO7iv
+  password: D7tekHXqi63PXT59ZUjdsWol0wyuZDb6PB0SSfyH
 
 
   #Check if Triton service is up and running:
