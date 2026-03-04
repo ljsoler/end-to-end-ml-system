@@ -119,6 +119,9 @@ kubectl get pods -n serving
   canary_version,
   canary_percent,
 
+  shadow_version,
+  shadow_percent,
+
   rollout_strategy,
   ramp_step,
   ramp_steps,
@@ -147,9 +150,12 @@ VALUES (
   '2',
   10,
 
+  '2',          -- shadow version
+  50,           -- 50% shadow traffic
+
   'progressive',
   10,
-  ARRAY[10,25,50,100],   -- 👈 explicit milestones
+  ARRAY[10,25,50,100],
   120,
   NULL,
 
@@ -164,12 +170,15 @@ VALUES (
 
   '{"resize":[224,224]}'::jsonb,
   '{}'::jsonb,
-  'Identity model with progressive rollout + drift gating'
+  'Identity model with progressive rollout + shadow + drift gating'
 )
 ON CONFLICT (model_name) DO UPDATE SET
   stable_version = EXCLUDED.stable_version,
   canary_version = EXCLUDED.canary_version,
   canary_percent = EXCLUDED.canary_percent,
+
+  shadow_version = EXCLUDED.shadow_version,
+  shadow_percent = EXCLUDED.shadow_percent,
 
   rollout_strategy = EXCLUDED.rollout_strategy,
   ramp_step = EXCLUDED.ramp_step,
@@ -201,3 +210,8 @@ ON CONFLICT (model_name) DO UPDATE SET
 
   #Check if Triton service is up and running:
   kubectl get svc -n serving triton -o yaml
+
+
+  Prometheus
+
+  kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090
