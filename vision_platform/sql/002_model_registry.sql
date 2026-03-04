@@ -1,5 +1,5 @@
 -- =========================
--- model_registry (final v3)
+-- model_registry (final v4)
 -- =========================
 CREATE TABLE IF NOT EXISTS model_registry (
   id BIGSERIAL PRIMARY KEY,
@@ -17,10 +17,17 @@ CREATE TABLE IF NOT EXISTS model_registry (
   canary_percent INTEGER NOT NULL DEFAULT 0
     CHECK (canary_percent >= 0 AND canary_percent <= 100),
 
-  -- Shadow testing (NEW)
+  -- =========================
+  -- Shadow testing
+  -- =========================
   shadow_version TEXT NULL,
   shadow_percent INTEGER NOT NULL DEFAULT 0
     CHECK (shadow_percent >= 0 AND shadow_percent <= 100),
+
+  shadow_required BOOLEAN NOT NULL DEFAULT FALSE,
+  shadow_agreement_threshold DOUBLE PRECISION NOT NULL DEFAULT 0.95,
+  shadow_min_requests INTEGER NOT NULL DEFAULT 50,
+  shadow_window_seconds INTEGER NOT NULL DEFAULT 300,
 
   -- =========================
   -- Rollout
@@ -65,6 +72,7 @@ CREATE TABLE IF NOT EXISTS model_registry (
 -- =========================
 -- Indexes
 -- =========================
+
 CREATE INDEX IF NOT EXISTS idx_model_registry_active
   ON model_registry(active);
 

@@ -1,7 +1,7 @@
 # app/shadow_db.py
 from __future__ import annotations
 from typing import Optional
-import asyncpg  # type: ignore
+import json
 
 async def insert_shadow_result(
     pool,
@@ -38,5 +38,5 @@ async def insert_shadow_result(
             camera_id,
             stable_latency_ms,
             shadow_latency_ms,
-            comparison,  # <-- dict is fine, cast handles it
+            json.dumps(comparison),  # <-- dict is fine, cast handles it
         )
