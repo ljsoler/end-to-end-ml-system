@@ -2,7 +2,7 @@
 #
 # Drift + Error + Shadow-Agreement aware progressive rollout controller
 # - Reads model_registry for models with rollout_strategy='progressive'
-# - Uses Prometheus for error-rate + request-volume + shadow-agreement (histogram)
+# - Uses Prometheus for error-rate + request-volume + shadow-agreement
 # - Uses Evidently drift metric already exported as gateway_drift_score{model_name=...}
 # - Writes audit trail into rollout_events table
 #
@@ -11,14 +11,14 @@
 #   PROM_URL (default kube-prometheus service)
 #   CHECK_INTERVAL (default 30)
 #   ERROR_WINDOW (default 5m)
-#   DRIFT_QUERY_MODE (unused placeholder)
-#
+
 import os
 import asyncio
-import time
 import asyncpg  # type: ignore
 import requests
 from datetime import datetime, timezone
+from typing import Any
+
 
 PROM_URL = os.getenv(
     "PROM_URL",
@@ -27,14 +27,18 @@ PROM_URL = os.getenv(
 PG_DSN = os.getenv("PG_DSN")
 
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "30"))
-ERROR_WINDOW = os.getenv("ERROR_WINDOW", "5m")  # fast canary decisions
+ERROR_WINDOW = os.getenv("ERROR_WINDOW", "5m")
 
 
 # ---------------------------
 # Prom helpers
 # ---------------------------
 def prom_query_scalar(query: str) -> tuple[float, bool]:
-    r = requests.get(f"{PROM_URL}/api/v1/query", params={"query": query}, timeout=5)
+    r = requests.get(
+        f"{PROM_URL}/api/v1/query",
+        params={"query": query},
+        timeout=5,
+    )
     r.raise_for_status()
     data = r.json()
     result = data.get("data", {}).get("result", [])
@@ -44,47 +48,45 @@ def prom_query_scalar(query: str) -> tuple[float, bool]:
 
 
 def error_rate(model: str, version: str, window: str) -> float:
-    q = f'''
+    q = f"""
     sum(rate(gateway_requests_total{{model_name="{model}",model_version="{version}",status="error"}}[{window}]))
     /
     clamp_min(sum(rate(gateway_requests_total{{model_name="{model}",model_version="{version}"}}[{window}])), 1e-9)
-    '''
+    """
     v, _ = prom_query_scalar(q)
     return v
 
 
 def req_count(model: str, version: str, window: str) -> float:
-    q = f'''
+    q = f"""
     sum(increase(gateway_requests_total{{model_name="{model}",model_version="{version}"}}[{window}]))
-    '''
+    """
     v, _ = prom_query_scalar(q)
     return v
 
 
 def model_drift(model: str) -> tuple[float, bool]:
-    # conservative: max drift across cameras for this model
     q = f'max(gateway_drift_score{{model_name="{model}"}})'
     return prom_query_scalar(q)
 
 
 def shadow_agreement_avg(model: str, window: str) -> tuple[float, bool]:
-    # average agreement from histogram _sum/_count
-    q = f'''
+    q = f"""
     sum(rate(gateway_shadow_agreement_sum{{model_name="{model}"}}[{window}]))
     /
     clamp_min(sum(rate(gateway_shadow_agreement_count{{model_name="{model}"}}[{window}])), 1e-9)
-    '''
+    """
     return prom_query_scalar(q)
 
 
 def shadow_agreement_count(model: str, window: str) -> tuple[float, bool]:
-    q = f'''
+    q = f"""
     sum(increase(gateway_shadow_agreement_count{{model_name="{model}"}}[{window}]))
-    '''
+    """
     return prom_query_scalar(q)
 
 
-def seconds_since(ts) -> float:
+def seconds_since(ts: Any) -> float:
     if ts is None:
         return 1e18
     if ts.tzinfo is None:
@@ -99,6 +101,42 @@ def next_percent_from_steps(current: int, steps: list[int] | None, fallback_step
                 return min(100, int(s))
         return 100
     return min(100, current + fallback_step)
+
+
+def normalize_ramp_steps(raw_steps: Any) -> list[int] | None:
+    if raw_steps is None:
+        return None
+
+    if isinstance(raw_steps, list):
+        vals = []
+        for x in raw_steps:
+            try:
+                vals.append(int(x))
+            except Exception:
+                continue
+        vals = sorted(set(v for v in vals if 0 < v <= 100))
+        return vals or None
+
+    if isinstance(raw_steps, str):
+        s = raw_steps.strip()
+        if not s:
+            return None
+        s = s.strip("{}")
+        if not s:
+            return None
+        vals = []
+        for part in s.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                vals.append(int(part))
+            except Exception:
+                continue
+        vals = sorted(set(v for v in vals if 0 < v <= 100))
+        return vals or None
+
+    return None
 
 
 # ---------------------------
@@ -238,6 +276,7 @@ async def monitor():
                 pct = int(m["canary_percent"])
 
                 ramp_step = int(m["ramp_step"])
+                ramp_steps = normalize_ramp_steps(m.get("ramp_steps"))
                 ramp_interval = int(m["ramp_interval_seconds"])
                 min_requests = int(m["min_requests"])
 
@@ -249,7 +288,6 @@ async def monitor():
                 drift_freeze = bool(m["drift_freeze"])
                 drift_required = bool(m["drift_required"])
 
-                # ---- shadow gating config ----
                 shadow_required = bool(m.get("shadow_required", False))
                 shadow_agree_th = float(m.get("shadow_agreement_threshold", 0.95))
                 shadow_min_req = int(m.get("shadow_min_requests", 50))
@@ -284,29 +322,28 @@ async def monitor():
                 sh_cnt, sh_cnt_present = shadow_agreement_count(model, shadow_window)
                 sh_avg, sh_avg_present = shadow_agreement_avg(model, shadow_window)
 
-                # If shadow is required but metrics missing => freeze
-                if shadow_required:
-                    if (not sh_cnt_present) or (not sh_avg_present):
-                        msg = "shadow required but metrics missing"
-                        print(f"[{model}] FREEZE: {msg}", flush=True)
-                        await insert_rollout_event(
-                            pool,
-                            model_name=model,
-                            action="freeze_shadow_missing",
-                            previous_canary_percent=pct,
-                            new_canary_percent=pct,
-                            stable_version=stable_v,
-                            canary_version=canary_v,
-                            error_stable=stable_e,
-                            error_canary=canary_e,
-                            drift_score=(drift_val if drift_present else None),
-                            shadow_agreement=(sh_avg if sh_avg_present else None),
-                            shadow_count=(sh_cnt if sh_cnt_present else None),
-                            reason=msg,
-                        )
-                        continue
+                # ---- shadow required but metrics missing => freeze
+                if shadow_required and ((not sh_cnt_present) or (not sh_avg_present)):
+                    msg = "shadow required but metrics missing"
+                    print(f"[{model}] FREEZE: {msg}", flush=True)
+                    await insert_rollout_event(
+                        pool,
+                        model_name=model,
+                        action="freeze_shadow_missing",
+                        previous_canary_percent=pct,
+                        new_canary_percent=pct,
+                        stable_version=stable_v,
+                        canary_version=canary_v,
+                        error_stable=stable_e,
+                        error_canary=canary_e,
+                        drift_score=(drift_val if drift_present else None),
+                        shadow_agreement=(sh_avg if sh_avg_present else None),
+                        shadow_count=(sh_cnt if sh_cnt_present else None),
+                        reason=msg,
+                    )
+                    continue
 
-                # If we have shadow metrics but not enough samples => skip/freeze
+                # ---- not enough shadow samples
                 if sh_cnt_present and sh_cnt < shadow_min_req:
                     msg = f"not enough shadow samples {sh_cnt:.0f} < {shadow_min_req}"
                     print(f"[{model}] FREEZE: {msg}", flush=True)
@@ -327,7 +364,7 @@ async def monitor():
                     )
                     continue
 
-                # If shadow agreement present and below threshold => rollback
+                # ---- shadow agreement rollback
                 if sh_avg_present and sh_avg < shadow_agree_th:
                     msg = f"shadow agreement {sh_avg:.3f} < {shadow_agree_th}"
                     await insert_rollout_event(
@@ -348,7 +385,7 @@ async def monitor():
                     await rollback(pool, model, msg)
                     continue
 
-                # ---- drift freeze behavior ----
+                # ---- drift freeze behavior
                 if drift_freeze:
                     if (not drift_present) and drift_required:
                         msg = "drift required but missing"
@@ -388,7 +425,6 @@ async def monitor():
                             reason=msg,
                         )
 
-                        # catastrophic drift + bad errors -> rollback
                         if drift_val >= drift_rb_th and (canary_e > err_th) and (canary_e > stable_e * ratio_th):
                             msg2 = f"drift {drift_val:.3f} >= {drift_rb_th} AND bad canary errors"
                             await insert_rollout_event(
@@ -410,7 +446,7 @@ async def monitor():
 
                         continue
 
-                # ---- classic rollback gate (error-based) ----
+                # ---- classic rollback gate (error-based)
                 if (canary_e > err_th) and (canary_e > stable_e * ratio_th):
                     msg = f"canary_err={canary_e:.4f} stable_err={stable_e:.4f} th={err_th} ratio={ratio_th}"
                     await insert_rollout_event(
@@ -431,13 +467,12 @@ async def monitor():
                     await rollback(pool, model, msg)
                     continue
 
-                # ---- cooldown gate ----
+                # ---- cooldown gate
                 if seconds_since(m["last_ramp_at"]) < ramp_interval:
                     continue
 
-                # ---- ramp / promote ----
+                # ---- ramp / promote
                 if pct >= 100:
-                    # promote only if drift is healthy (or not present and not required)
                     if drift_freeze and drift_present and drift_val > drift_th:
                         msg = f"hold promotion: drift {drift_val:.3f} > {drift_th}"
                         print(f"[{model}] {msg}", flush=True)
@@ -474,10 +509,8 @@ async def monitor():
                         reason="healthy (err ok, drift ok, shadow ok)",
                     )
                     await promote(pool, model)
-
                 else:
-                    steps = m.get("ramp_steps")
-                    new_pct = next_percent_from_steps(pct, steps, ramp_step)
+                    new_pct = next_percent_from_steps(pct, ramp_steps, ramp_step)
 
                     await insert_rollout_event(
                         pool,

@@ -212,6 +212,34 @@ ON CONFLICT (model_name) DO UPDATE SET
   kubectl get svc -n serving triton -o yaml
 
 
+  Triton (Logs)
+  kubectl -n serving logs deploy/triton -f 
+
+  Canary controller
+  kubectl -n serving logs deploy/canary-controller -f
+
   Prometheus
 
   kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090
+
+
+  # Deploy a new model
+scripts/release_model.sh \
+--model identity_onnx \
+--task identity \
+--stable 1 \
+--canary 1 \
+--canary-percent 0 \
+--rollout manual \
+--onnx triton_models/identity_onnx/1/model.onnx \
+--config triton_models/identity_onnx/config.pbtxt
+
+scripts/release_model.sh \
+  --model identity_onnx \
+  --task identity \
+  --stable 1 \
+  --canary 2 \
+  --canary-percent 10 \
+  --rollout progressive \
+  --onnx triton_models/identity_onnx/2/model.onnx \
+  --config triton_models/identity_onnx/config.pbtxt
