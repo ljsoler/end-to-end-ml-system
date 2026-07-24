@@ -1,4 +1,4 @@
-# Vision System
+# Production-ready Vision System
 
 Production-style end-to-end industrial computer vision platform running locally on Mac + k3d Kubernetes.
 
