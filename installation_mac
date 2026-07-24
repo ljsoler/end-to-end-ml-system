@@ -113,9 +113,30 @@ kubectl get pods -n serving
   INSERT INTO model_registry (
   model_name,
   task_type,
+  active,
+
   stable_version,
   canary_version,
   canary_percent,
+
+  shadow_version,
+  shadow_percent,
+
+  rollout_strategy,
+  ramp_step,
+  ramp_steps,
+  ramp_interval_seconds,
+  last_ramp_at,
+
+  error_threshold,
+  ratio_threshold,
+  min_requests,
+
+  drift_threshold,
+  drift_rollback_threshold,
+  drift_freeze,
+  drift_required,
+
   preprocess_config,
   postprocess_config,
   description
@@ -123,19 +144,60 @@ kubectl get pods -n serving
 VALUES (
   'identity_onnx',
   'identity',
+  TRUE,
+
   '1',
   '2',
   10,
+
+  '2',          -- shadow version
+  50,           -- 50% shadow traffic
+
+  'progressive',
+  10,
+  ARRAY[10,25,50,100],
+  120,
+  NULL,
+
+  0.03,
+  2.0,
+  50,
+
+  0.30,
+  0.50,
+  TRUE,
+  FALSE,
+
   '{"resize":[224,224]}'::jsonb,
   '{}'::jsonb,
-  'Identity model with canary enabled'
+  'Identity model with progressive rollout + shadow + drift gating'
 )
 ON CONFLICT (model_name) DO UPDATE SET
   stable_version = EXCLUDED.stable_version,
   canary_version = EXCLUDED.canary_version,
   canary_percent = EXCLUDED.canary_percent,
+
+  shadow_version = EXCLUDED.shadow_version,
+  shadow_percent = EXCLUDED.shadow_percent,
+
+  rollout_strategy = EXCLUDED.rollout_strategy,
+  ramp_step = EXCLUDED.ramp_step,
+  ramp_steps = EXCLUDED.ramp_steps,
+  ramp_interval_seconds = EXCLUDED.ramp_interval_seconds,
+  last_ramp_at = EXCLUDED.last_ramp_at,
+
+  error_threshold = EXCLUDED.error_threshold,
+  ratio_threshold = EXCLUDED.ratio_threshold,
+  min_requests = EXCLUDED.min_requests,
+
+  drift_threshold = EXCLUDED.drift_threshold,
+  drift_rollback_threshold = EXCLUDED.drift_rollback_threshold,
+  drift_freeze = EXCLUDED.drift_freeze,
+  drift_required = EXCLUDED.drift_required,
+
   preprocess_config = EXCLUDED.preprocess_config,
   postprocess_config = EXCLUDED.postprocess_config,
+  description = EXCLUDED.description,
   updated_at = now();
 
 
@@ -143,8 +205,41 @@ ON CONFLICT (model_name) DO UPDATE SET
 
   Grafana: http://localhost:3000
   user: admin
-  password: CXAiuLBgnred3NbCBoBfAXenxFFVQbu6URQaO7iv
+  password: D7tekHXqi63PXT59ZUjdsWol0wyuZDb6PB0SSfyH
 
 
   #Check if Triton service is up and running:
   kubectl get svc -n serving triton -o yaml
+
+
+  Triton (Logs)
+  kubectl -n serving logs deploy/triton -f 
+
+  Canary controller
+  kubectl -n serving logs deploy/canary-controller -f
+
+  Prometheus
+
+  kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090
+
+
+  # Deploy a new model
+scripts/release_model.sh \
+--model identity_onnx \
+--task identity \
+--stable 1 \
+--canary 1 \
+--canary-percent 0 \
+--rollout manual \
+--onnx triton_models/identity_onnx/1/model.onnx \
+--config triton_models/identity_onnx/config.pbtxt
+
+scripts/release_model.sh \
+  --model identity_onnx \
+  --task identity \
+  --stable 1 \
+  --canary 2 \
+  --canary-percent 10 \
+  --rollout progressive \
+  --onnx triton_models/identity_onnx/2/model.onnx \
+  --config triton_models/identity_onnx/config.pbtxt

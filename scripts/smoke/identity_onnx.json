@@ -1,0 +1,13 @@
+{
+  "inputs": [
+    {
+      "name": "INPUT__0",
+      "shape": [1, 3, 224, 224],
+      "datatype": "FP32",
+      "data": [0.0]
+    }
+  ],
+  "outputs": [
+    { "name": "OUTPUT__0" }
+  ]
+}

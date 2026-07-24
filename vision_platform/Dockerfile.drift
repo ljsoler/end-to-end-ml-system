@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# minimal OS deps (optional but helps)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt /app/requirements.txt
+
+# Evidently + runtime libs
+RUN pip install --no-cache-dir \
+    asyncpg requests boto3 pandas "evidently>=0.4.0,<0.5.0"
+
+COPY app/drift_worker.py /app/app/drift_worker.py
+
+CMD ["python", "-u", "/app/app/drift_worker.py"]

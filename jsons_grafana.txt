@@ -1,0 +1,177 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_POSTGRES",
+      "label": "PostgreSQL (visiondb)",
+      "description": "PostgreSQL datasource pointing to visiondb",
+      "type": "datasource",
+      "pluginId": "postgres",
+      "pluginName": "PostgreSQL"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "9.0.0" },
+    { "type": "datasource", "id": "postgres", "name": "PostgreSQL", "version": "1.0.0" }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "iteration": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Latest rollout actions (table)",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  created_at AS \"time\",\n  model_name,\n  action,\n  previous_canary_percent,\n  new_canary_percent,\n  stable_version,\n  canary_version,\n  error_stable,\n  error_canary,\n  drift_score,\n  reason\nFROM rollout_events\nWHERE $__timeFilter(created_at)\nORDER BY created_at DESC\nLIMIT 200;"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "time", "desc": true }]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "displayMode": "auto" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Canary percent over time",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  created_at AS \"time\",\n  model_name,\n  new_canary_percent AS canary_percent\nFROM rollout_events\nWHERE $__timeFilter(created_at)\n  AND action IN ('ramp','rollback','promote')\nORDER BY created_at;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Rollbacks per day",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  date_trunc('day', created_at) AS \"time\",\n  model_name,\n  COUNT(*) AS rollbacks\nFROM rollout_events\nWHERE $__timeFilter(created_at)\n  AND action = 'rollback'\nGROUP BY 1, 2\nORDER BY 1;"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Promotions per day",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  date_trunc('day', created_at) AS \"time\",\n  model_name,\n  COUNT(*) AS promotions\nFROM rollout_events\nWHERE $__timeFilter(created_at)\n  AND action = 'promote'\nGROUP BY 1, 2\nORDER BY 1;"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Freeze events (drift gating)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  created_at AS \"time\",\n  model_name,\n  drift_score,\n  error_stable,\n  error_canary,\n  reason\nFROM rollout_events\nWHERE $__timeFilter(created_at)\n  AND action = 'freeze'\nORDER BY created_at DESC\nLIMIT 200;"
+        }
+      ],
+      "options": { "showHeader": true }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Current model registry state",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 34 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  model_name,\n  task_type,\n  active,\n  rollout_strategy,\n  stable_version,\n  canary_version,\n  canary_percent,\n  ramp_step,\n  ramp_steps,\n  ramp_interval_seconds,\n  error_threshold,\n  ratio_threshold,\n  min_requests,\n  drift_threshold,\n  drift_rollback_threshold,\n  drift_freeze,\n  drift_required,\n  updated_at\nFROM model_registry\nORDER BY model_name;"
+        }
+      ],
+      "options": { "showHeader": true }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["mlops", "rollout", "canary", "drift"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m"],
+    "time_options": ["5m", "15m", "30m", "1h", "3h", "6h", "12h", "24h", "2d", "7d"]
+  },
+  "timezone": "",
+  "title": "Rollout Control Plane (Postgres)",
+  "uid": null,
+  "version": 1,
+  "weekStart": ""
+}

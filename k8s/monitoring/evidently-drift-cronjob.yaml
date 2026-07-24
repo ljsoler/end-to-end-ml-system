@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: evidently-drift
+  namespace: monitoring
+spec:
+  schedule: "*/15 * * * *"  # every 15 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: drift
+              image: vision-evidently-drift:dev
+              env:
+                - name: PG_DSN
+                  value: "postgresql://postgres:postgres@postgres-postgresql.data.svc.cluster.local:5432/visiondb"
+                - name: PROM_URL
+                  value: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
+                - name: PROM_PUSHGATEWAY
+                  value: "http://pushgateway-prometheus-pushgateway.monitoring.svc.cluster.local:9091"
+                - name: MINIO_ENDPOINT
+                  value: "http://minio.data.svc.cluster.local:9000"
+                - name: MINIO_ACCESS
+                  value: "minio"
+                - name: MINIO_SECRET
+                  value: "minio123456"
+                - name: REPORT_BUCKET
+                  value: "reports"
+                - name: REPORT_PREFIX
+                  value: "drift-reports"
+                - name: MODEL_NAME
+                  value: "identity_onnx"
+                - name: TASK_TYPE
+                  value: "identity"
+                - name: CURRENT_WINDOW_MIN
+                  value: "5" #60
+                - name: REFERENCE_WINDOW_HOURS
+                  value: "1" #24
+                - name: REFERENCE_LOOKBACK_DAYS
+                  value: "0" #7

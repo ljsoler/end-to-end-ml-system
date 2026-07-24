@@ -18,10 +18,19 @@ spec:
       containers:
         - name: controller
           image: vision-canary-controller:dev
+          imagePullPolicy: IfNotPresent
           env:
             - name: PG_DSN
               value: "postgresql://postgres:postgres@postgres-postgresql.data.svc.cluster.local:5432/visiondb"
             - name: PROM_URL
               value: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
-            - name: MODEL_NAME
-              value: "identity_onnx"
+
+            # Controller tuning
+            - name: CHECK_INTERVAL
+              value: "30"
+            - name: ERROR_WINDOW
+              value: "5m"
+
+            # Optional (future): use max vs p95 drift aggregation
+            - name: DRIFT_QUERY_MODE
+              value: "max"

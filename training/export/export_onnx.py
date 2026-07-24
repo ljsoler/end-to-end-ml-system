@@ -19,7 +19,7 @@ if __name__ == "__main__":
             "INPUT__0": {0: "batch"},
             "OUTPUT__0": {0: "batch"},
         },
-        opset_version=17,
+        opset_version=13,
     )
 
     print("Exported model.onnx with dynamic batch")
