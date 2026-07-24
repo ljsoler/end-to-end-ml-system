@@ -16,6 +16,7 @@ The system is task-agnostic and supports multiple ML tasks such as identity reco
 
 ## System Architecture
 
+```
 Edge Client
      │
      ▼
@@ -41,6 +42,7 @@ ML Safety Layer
      ├── Progressive Canary Controller
      ├── Drift Detection Worker (Evidently)
      └── Shadow Model Evaluation
+```
 
 ## Key Features
 
